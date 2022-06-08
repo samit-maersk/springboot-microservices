@@ -1,115 +1,106 @@
 package com.samitkumarpatel.springbootms;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.data.web.SpringDataWebProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.repository.PagingAndSortingRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import java.util.List;
+import java.util.function.Predicate;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
-import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
 
 @SpringBootApplication
 public class SpringbootMsApplication {
+	@Value("${web.users.URL}")
+	private String userWebURL;
+
+	@Bean
+	public WebClient webClient() {
+		//TODO can this hardcoded URL be picked from a properties file?
+		return WebClient.builder().baseUrl(userWebURL).build();
+	}
 
 	public static void main(String[] args) {
 		SpringApplication.run(SpringbootMsApplication.class, args);
 	}
-
 }
 
 @Configuration
-@Slf4j
-class PersonRouter {
+class Router {
 	@Bean
-	public RouterFunction<ServerResponse> route(PersonHandler handler) {
-		return RouterFunctions.route(GET("/person"), handler::allPerson)
-				.andRoute(POST("/person"),handler::createPerson);
+	public RouterFunction<ServerResponse> route(UserHandler userHandler) {
+		return RouterFunctions.route(GET("/user"), userHandler::bank);
 	}
 }
 
-@Getter
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
-@Entity
-class Person {
-	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
-	private Long id;
+@Component
+@Slf4j
+@RequiredArgsConstructor
+class UserHandler {
+	private final UserService userService;
+
+	public Mono<ServerResponse> bank(ServerRequest request) {
+		var page = request.queryParam("page").orElse("1");
+		return ServerResponse
+				.ok()
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(userService.getAllUser(), User.class);
+	}
+}
+
+@Data @Builder @AllArgsConstructor @RequiredArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+class User {
+	private int slNo;
+	private String id;
 	private String name;
-	private int age;
-}
-@Configuration
-class PersonHandler {
-
-	private PersonService personService;
-
-	PersonHandler(PersonService personService) {
-		this.personService = personService;
-	}
-	Mono<ServerResponse> createPerson(ServerRequest request) {
-		return ServerResponse
-				.ok()
-				.body(
-						request.bodyToMono(Person.class)
-								.flatMap(person -> personService.create(person)), Person.class);
-	}
-	Mono<ServerResponse> allPerson(ServerRequest request) {
-
-		return ServerResponse
-				.ok()
-				.body(Mono.just(personService.allPerson(
-						PageRequest.of(Integer.parseInt(request.queryParam("pageNo").orElse("0")),
-								Integer.parseInt(request.queryParam("size").orElse("5"))))
-				),Person.class);
-	}
+	private String email;
+	private String gender;
+	private String status;
 }
 
 @Service
-class PersonService {
-	private PersonRepository personRepository;
-
-	@Autowired
-	PersonService(PersonRepository personRepository) {
-		this.personRepository = personRepository;
+@RequiredArgsConstructor
+class UserService {
+	private final WebClient webClient;
+	public Flux<User> getAllUser() {
+		return getUsersFromWeb()
+				.index()
+				.map(tuple -> mappedSlNo(tuple));
 	}
 
-	Page<Person> allPerson(Pageable pageable) {
-		return personRepository.findAll(pageable);
+	//TODO can this be moved to a mapper ?
+	private User mappedSlNo(Tuple2<Long, User> tuple) {
+		User u = tuple.getT2();
+		u.setSlNo(tuple.getT1().intValue());
+		return u;
 	}
 
-	public Mono<Person> create(Person person) {
-		return Mono.just(personRepository.save(person));
+	private Flux<User> getUsersFromWeb() {
+		return webClient
+				.get()
+				.uri("/users")
+				.retrieve()
+				.bodyToFlux(User.class)
+				//.onErrorReturn(User.builder().build())
+		;
 	}
 }
-
-@Repository
-interface PersonRepository extends PagingAndSortingRepository<Person, Long> {
-
-}
-
