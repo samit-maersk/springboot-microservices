@@ -23,8 +23,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 
-import java.util.function.Predicate;
-
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 
 @SpringBootApplication
@@ -47,7 +45,7 @@ public class SpringbootMsApplication {
 class Router {
 	@Bean
 	public RouterFunction<ServerResponse> route(UserHandler userHandler) {
-		return RouterFunctions.route(GET("/user"), userHandler::bank);
+		return RouterFunctions.route(GET("/user"), userHandler::getUsers);
 	}
 }
 
@@ -57,7 +55,7 @@ class Router {
 class UserHandler {
 	private final UserService userService;
 
-	public Mono<ServerResponse> bank(ServerRequest request) {
+	public Mono<ServerResponse> getUsers(ServerRequest request) {
 		var page = request.queryParam("page").orElse("1");
 		return ServerResponse
 				.ok()
@@ -80,11 +78,14 @@ class User {
 @Service
 @RequiredArgsConstructor
 class UserService {
+	private static String ACTIVE = "active";
+	private static String INACTIVE = "inactive";
 	private final WebClient webClient;
 	public Flux<User> getAllUser() {
 		return getUsersFromWeb()
 				.index()
-				.map(tuple -> mappedSlNo(tuple));
+				.map(tuple -> mappedSlNo(tuple))
+				.filter(u -> ACTIVE.equals(u.getStatus()));
 	}
 
 	//TODO can this be moved to a mapper ?
