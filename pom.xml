@@ -5,13 +5,13 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>2.6.7</version>
+		<version>2.7.0</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.samitkumarpatel</groupId>
-	<artifactId>springboot-ms</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>springboot-ms</name>
+	<artifactId>springboot-microservices</artifactId>
+	<version>1.0.0-SNAPSHOT</version>
+	<name>springboot-microservices</name>
 	<description>springboot microservice with junit, integration and BDD test</description>
 	<properties>
 		<java.version>11</java.version>

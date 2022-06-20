@@ -9,8 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
@@ -23,9 +25,14 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 
+import java.util.Arrays;
+import java.util.List;
+
+import static com.samitkumarpatel.springbootms.Utils.ALL;
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 
 @SpringBootApplication
+@Slf4j
 public class SpringbootMsApplication {
 	@Value("${web.users.URL}")
 	private String userWebURL;
@@ -33,7 +40,14 @@ public class SpringbootMsApplication {
 	@Bean
 	public WebClient webClient() {
 		//TODO can this hardcoded URL be picked from a properties file?
-		return WebClient.builder().baseUrl(userWebURL).build();
+		return WebClient
+				.builder()
+				.baseUrl(userWebURL)
+				.filter((clientRequest, nextFilter) -> {
+					log.info("WebClient filter invoked METHOD: {}, URI: {}",clientRequest.method(), clientRequest.url());
+					return nextFilter.exchange(clientRequest);
+				})
+				.build();
 	}
 
 	public static void main(String[] args) {
@@ -49,20 +63,50 @@ class Router {
 	}
 }
 
+interface UserHandler {
+	public Mono<ServerResponse> getUsers(ServerRequest request);
+}
+
 @Component
 @Slf4j
 @RequiredArgsConstructor
-class UserHandler {
+@ConditionalOnProperty(name = "app.environment", havingValue = "ao")
+class AoClusterUserHandler implements UserHandler {
 	private final UserService userService;
 
+	@Override
 	public Mono<ServerResponse> getUsers(ServerRequest request) {
 		var page = request.queryParam("page").orElse("1");
+		var filterWith = request.queryParam("filterWith").orElse(ALL);
+
 		return ServerResponse
 				.ok()
 				.contentType(MediaType.APPLICATION_JSON)
-				.body(userService.getAllUser(), User.class);
+				.body(userService.getAllUser(page,filterWith), User.class);
 	}
 }
+
+@Component
+@Slf4j
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.environment", havingValue = "az")
+class AzClusterUserHandler implements UserHandler {
+
+	private List<User> getUs() {
+		return Arrays.asList(
+				User.builder().id("1").name("u1").build(),
+				User.builder().id("2").name("u2").build()
+		);
+	}
+	@Override
+	public Mono<ServerResponse> getUsers(ServerRequest request) {
+		return ServerResponse
+				.ok()
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(Flux.fromIterable(getUs()),User.class);
+	}
+}
+
 
 @Data @Builder @AllArgsConstructor @RequiredArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -75,33 +119,38 @@ class User {
 	private String status;
 }
 
+class Utils {
+	public static String ALL = "all";
+	public static String ACTIVE = "active";
+	public static String INACTIVE = "inactive";
+}
 @Service
 @RequiredArgsConstructor
 class UserService {
-	private static String ACTIVE = "active";
-	private static String INACTIVE = "inactive";
+
 	private final WebClient webClient;
-	public Flux<User> getAllUser() {
-		return getUsersFromWeb()
+	public Flux<User> getAllUser(String page, String filterWith) {
+		return getUsersFromWeb(page)
 				.index()
 				.map(tuple -> mappedSlNo(tuple))
-				.filter(u -> ACTIVE.equals(u.getStatus()));
+				.filterWhen(u -> Mono.just(ALL.equals(filterWith) ? true : filterWith.equals(u.getStatus())));
+				//.filter(u -> ALL.equals(filterWith) ? true : filterWith.equals(u.getStatus()));
 	}
 
-	//TODO can this be moved to a mapper ?
 	private User mappedSlNo(Tuple2<Long, User> tuple) {
 		User u = tuple.getT2();
 		u.setSlNo(tuple.getT1().intValue());
 		return u;
 	}
 
-	private Flux<User> getUsersFromWeb() {
+	private Flux<User> getUsersFromWeb(String pageNumber) {
 		return webClient
 				.get()
-				.uri("/users")
+				.uri( uriBuilder -> uriBuilder.path("/users").queryParam("page",pageNumber).build())
+				.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
 				.retrieve()
 				.bodyToFlux(User.class)
-				//.onErrorReturn(User.builder().build())
+				.onErrorReturn(User.builder().build())
 		;
 	}
 }

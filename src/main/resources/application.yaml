@@ -1,3 +1,19 @@
+
 web:
   users:
     URL: "https://gorest.co.in/public/v2"
+logging:
+  level:
+    root: info
+    web: info
+spring:
+  application:
+    name: springboot-microservices
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+app:
+  environment: az
