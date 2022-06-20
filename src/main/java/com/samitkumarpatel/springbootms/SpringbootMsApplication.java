@@ -91,19 +91,15 @@ class AoClusterUserHandler implements UserHandler {
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.environment", havingValue = "az")
 class AzClusterUserHandler implements UserHandler {
-
-	private List<User> getUs() {
-		return Arrays.asList(
-				User.builder().id("1").name("u1").build(),
-				User.builder().id("2").name("u2").build()
-		);
-	}
+	private final UserService userService;
 	@Override
 	public Mono<ServerResponse> getUsers(ServerRequest request) {
 		return ServerResponse
 				.ok()
 				.contentType(MediaType.APPLICATION_JSON)
-				.body(Flux.fromIterable(getUs()),User.class);
+				.body(
+						userService.getStaticUser(),
+						User.class);
 	}
 }
 
@@ -135,6 +131,15 @@ class UserService {
 				.map(tuple -> mappedSlNo(tuple))
 				.filterWhen(u -> Mono.just(ALL.equals(filterWith) ? true : filterWith.equals(u.getStatus())));
 				//.filter(u -> ALL.equals(filterWith) ? true : filterWith.equals(u.getStatus()));
+	}
+
+	public Flux<User> getStaticUser() {
+		return Flux.just(
+				User.builder().id("1").name("u1").build(),
+				User.builder().id("2").name("u2").build()
+		)
+				.index()
+				.map(tuple -> mappedSlNo(tuple));
 	}
 
 	private User mappedSlNo(Tuple2<Long, User> tuple) {
