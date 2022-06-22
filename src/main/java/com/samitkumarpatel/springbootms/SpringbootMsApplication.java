@@ -30,6 +30,7 @@ import java.util.List;
 
 import static com.samitkumarpatel.springbootms.Utils.ALL;
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
+import static org.springframework.web.reactive.function.server.ServerResponse.*;
 
 @SpringBootApplication
 @Slf4j
@@ -39,7 +40,7 @@ public class SpringbootMsApplication {
 
 	@Bean
 	public WebClient webClient() {
-		//TODO can this hardcoded URL be picked from a properties file?
+
 		return WebClient
 				.builder()
 				.baseUrl(userWebURL)
@@ -79,8 +80,7 @@ class AoClusterUserHandler implements UserHandler {
 		var page = request.queryParam("page").orElse("1");
 		var filterWith = request.queryParam("filterWith").orElse(ALL);
 
-		return ServerResponse
-				.ok()
+		return ok()
 				.contentType(MediaType.APPLICATION_JSON)
 				.body(userService.getAllUser(page,filterWith), User.class);
 	}
@@ -94,8 +94,7 @@ class AzClusterUserHandler implements UserHandler {
 	private final UserService userService;
 	@Override
 	public Mono<ServerResponse> getUsers(ServerRequest request) {
-		return ServerResponse
-				.ok()
+		return ok()
 				.contentType(MediaType.APPLICATION_JSON)
 				.body(
 						userService.getStaticUser(),

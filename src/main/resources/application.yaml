@@ -16,4 +16,4 @@ management:
       exposure:
         include: health, info, prometheus
 app:
-  environment: az
+  environment: ao
