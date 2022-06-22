@@ -21,4 +21,4 @@ jobs:
     - name: Build with Maven
       run: |
         ls -al
-        mvn -B clean package
+        ./mvnw -B clean package
