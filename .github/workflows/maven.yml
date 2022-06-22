@@ -20,4 +20,5 @@ jobs:
         cache: maven
     - name: Build with Maven
       run: |
-        .mvnw -B clean package
+        ls -al
+        mvn -B clean package
